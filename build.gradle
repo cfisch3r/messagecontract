@@ -14,5 +14,7 @@ dependencies {
     testCompile group: 'junit', name: 'junit', version: '4.11'
     testCompile 'org.assertj:assertj-core:3.6.2'
     testCompile 'com.github.geowarin:docker-junit-rule:1.1.0'
-    compile 'org.springframework.amqp:spring-rabbit:1.7.0.RELEASE'
+    compile ('org.springframework.amqp:spring-rabbit:1.7.0.RELEASE'){
+        exclude group: 'org.apache.httpcomponents'
+    }
 }
