@@ -24,16 +24,16 @@ public class MessageClientTest {
 
     @Test
     public void canCreateQueue() {
+        RabbitAdmin admin = new RabbitAdmin(connectionFactory());
+        admin.declareQueue(new Queue("myQueue"));
+        Properties queueProperties = admin.getQueueProperties("myQueue");
+        Assertions.assertThat(queueProperties).isNotNull();
+    }
+
+    private CachingConnectionFactory connectionFactory() {
         CachingConnectionFactory cf = new CachingConnectionFactory();
         cf.setHost(rabbitRule.getDockerHost());
         cf.setPort(rabbitRule.getHostPort("5672/tcp"));
-
-
-        // set up the queue, exchange, binding on the broker
-        RabbitAdmin admin = new RabbitAdmin(cf);
-        Queue queue = new Queue("myQueue");
-        admin.declareQueue(queue);
-        Properties queueProperties = admin.getQueueProperties("myQueue");
-        Assertions.assertThat(queueProperties).isNotNull();
+        return cf;
     }
 }
