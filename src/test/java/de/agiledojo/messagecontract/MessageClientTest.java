@@ -2,18 +2,27 @@ package de.agiledojo.messagecontract;
 
 import com.github.geowarin.junit.DockerRule;
 import org.assertj.core.api.Assertions;
+import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
+import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 import java.util.Properties;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class MessageClientTest {
+
+    private static final String QUEUE = "myQueue";
+
+    private static final String EXCHANGE = "myExchange";
 
     @ClassRule
     public static DockerRule rabbitRule =
@@ -24,29 +33,38 @@ public class MessageClientTest {
                     .waitForLog("Server startup complete")
                     .build();
 
+    private static ConnectionFactory connectionFactory;
+
+    @BeforeClass
+    public static void setUp() throws Exception {
+        connectionFactory = connectionFactory();
+        setUpRouting();
+    }
+
     @Test
     public void canCreateQueue() {
-        RabbitAdmin admin = new RabbitAdmin(connectionFactory());
-        admin.declareQueue(new Queue("myQueue"));
-        Properties queueProperties = admin.getQueueProperties("myQueue");
-        Assertions.assertThat(queueProperties).isNotNull();
+        RabbitAdmin admin = new RabbitAdmin(connectionFactory);
+        admin.declareQueue(new Queue(QUEUE));
+        Properties queueProperties = admin.getQueueProperties(QUEUE);
+        assertThat(queueProperties).isNotNull();
     }
 
     @Test
     public void canSendMessage() {
-        RabbitAdmin admin = new RabbitAdmin(connectionFactory());
-        Queue queue = new Queue("myQueue");
+        RabbitTemplate rabbitClient = new RabbitTemplate(connectionFactory);
+        rabbitClient.convertAndSend(EXCHANGE,"foo.bar","my message");
+        Object message = rabbitClient.receiveAndConvert(QUEUE);
+        assertThat(message).isNotNull();
+    }
+
+    private static void setUpRouting() {
+        RabbitAdmin admin = new RabbitAdmin(connectionFactory);
+        Queue queue = new Queue(QUEUE);
         admin.declareQueue(queue);
-        TopicExchange exchange = new TopicExchange("myExchange");
+        TopicExchange exchange = new TopicExchange(EXCHANGE);
         admin.declareExchange(exchange);
         admin.declareBinding(
                 BindingBuilder.bind(queue).to(exchange).with("foo.*"));
-
-        RabbitTemplate rabbitClient = new RabbitTemplate(connectionFactory());
-        rabbitClient.convertAndSend("myExchange","foo.bar","my message");
-        rabbitClient.setQueue("myQueue");
-        Object message = rabbitClient.receiveAndConvert();
-        Assertions.assertThat(message).isNotNull();
     }
 
     //    @Test
@@ -67,7 +85,7 @@ public class MessageClientTest {
 //        Assertions.assertThat(body).isNotEmpty();
 //    }
 
-    private CachingConnectionFactory connectionFactory() {
+    private static ConnectionFactory connectionFactory() {
         CachingConnectionFactory cf = new CachingConnectionFactory();
         cf.setHost(rabbitRule.getDockerHost());
         cf.setPort(rabbitRule.getHostPort("5672/tcp"));
