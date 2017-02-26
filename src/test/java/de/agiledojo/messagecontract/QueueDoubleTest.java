@@ -5,6 +5,8 @@ import com.rabbitmq.client.*;
 import org.junit.*;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
 import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -22,9 +24,13 @@ public class QueueDoubleTest {
 
     private static ConnectionFactory connectionFactory;
 
+    private static final Message sampleMessage = new Message("guest","App ID","json",
+            StandardCharsets.UTF_8.name(),new Date(), "fsf");
+
     private Channel channel;
 
     private Connection connection;
+
     private String queue;
 
     @BeforeClass
@@ -63,7 +69,7 @@ public class QueueDoubleTest {
     public void messageHasAppId() throws IOException {
         sendSampleMessage();
         GetResponse response = getMessageFromQueue();
-        assertThat(response.getProps().getAppId()).isEqualTo("app ID");
+        assertThat(response.getProps().getAppId()).isEqualTo(sampleMessage.getAppId());
 
     }
 
@@ -71,27 +77,35 @@ public class QueueDoubleTest {
     public void messageHasUserId() throws IOException {
         sendSampleMessage();
         GetResponse response = getMessageFromQueue();
-        assertThat(response.getProps().getUserId()).isEqualTo("guest");
+        assertThat(response.getProps().getUserId()).isEqualTo(sampleMessage.getUserId());
 
     }
 
+    @Test
+    public void messageHasContentType() throws IOException {
+        sendSampleMessage();
+        GetResponse response = getMessageFromQueue();
+        assertThat(response.getProps().getContentType()).isEqualTo(sampleMessage.getContentType());
+
+    }
     private GetResponse getMessageFromQueue() throws IOException {
         return channel.basicGet(queue, true);
     }
 
     private void sendSampleMessage() throws IOException {
-        sendMessage("{\"a\": \"b\"");
+        sendMessage(sampleMessage);
     }
 
 
-    private void sendMessage(String messageBody) throws IOException {
-        channel.basicPublish("", queue, messageProperties(), messageBody.getBytes());
+    private void sendMessage(Message message) throws IOException {
+        channel.basicPublish("", queue, messageProperties(message), message.getBody().getBytes());
     }
 
-    private AMQP.BasicProperties messageProperties() {
+    private AMQP.BasicProperties messageProperties(Message message) {
         return new AMQP.BasicProperties.Builder()
-                .appId("app ID")
-                .userId("guest")
+                .appId(message.getAppId())
+                .userId(message.getUserId())
+                .contentType(message.getContentType())
                 .build();
     }
 }
