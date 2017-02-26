@@ -54,20 +54,35 @@ public class QueueDoubleTest {
 
     @Test
     public void messageCanBeReceived() throws IOException, TimeoutException, InterruptedException {
-        String message = "Hello, world!";
-        channel.basicPublish("", queue, null, message.getBytes());
-        GetResponse response = channel.basicGet(queue, true);
+        sendSampleMessage();
+        GetResponse response = getMessageFromQueue();
         assertThat(response).isNotNull();
     }
 
     @Test
-    public void messageHasUserId() throws IOException {
-        String message = "Hello, world!";
-        channel.basicPublish("", queue, new AMQP.BasicProperties.Builder()
-                .appId("app ID")
-                .build(), message.getBytes());
-        GetResponse response = channel.basicGet(queue, true);
+    public void messageHasAppId() throws IOException {
+        sendSampleMessage();
+        GetResponse response = getMessageFromQueue();
         assertThat(response.getProps().getAppId()).isEqualTo("app ID");
 
+    }
+
+    private GetResponse getMessageFromQueue() throws IOException {
+        return channel.basicGet(queue, true);
+    }
+
+    private void sendSampleMessage() throws IOException {
+        sendMessage("{\"a\": \"b\"");
+    }
+
+
+    private void sendMessage(String messageBody) throws IOException {
+        channel.basicPublish("", queue, messageProperties(), messageBody.getBytes());
+    }
+
+    private AMQP.BasicProperties messageProperties() {
+        return new AMQP.BasicProperties.Builder()
+                .appId("app ID")
+                .build();
     }
 }
