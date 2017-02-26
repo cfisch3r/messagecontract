@@ -1,10 +1,7 @@
 package de.agiledojo.messagecontract;
 
 import com.github.geowarin.junit.DockerRule;
-import com.rabbitmq.client.Channel;
-import com.rabbitmq.client.Connection;
-import com.rabbitmq.client.ConnectionFactory;
-import com.rabbitmq.client.GetResponse;
+import com.rabbitmq.client.*;
 import org.junit.*;
 
 import java.io.IOException;
@@ -61,5 +58,16 @@ public class QueueDoubleTest {
         channel.basicPublish("", queue, null, message.getBytes());
         GetResponse response = channel.basicGet(queue, true);
         assertThat(response).isNotNull();
+    }
+
+    @Test
+    public void messageHasUserId() throws IOException {
+        String message = "Hello, world!";
+        channel.basicPublish("", queue, new AMQP.BasicProperties.Builder()
+                .appId("app ID")
+                .build(), message.getBytes());
+        GetResponse response = channel.basicGet(queue, true);
+        assertThat(response.getProps().getAppId()).isEqualTo("app ID");
+
     }
 }
