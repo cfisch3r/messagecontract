@@ -67,6 +67,14 @@ public class QueueDoubleTest {
 
     }
 
+    @Test
+    public void messageHasUserId() throws IOException {
+        sendSampleMessage();
+        GetResponse response = getMessageFromQueue();
+        assertThat(response.getProps().getUserId()).isEqualTo("guest");
+
+    }
+
     private GetResponse getMessageFromQueue() throws IOException {
         return channel.basicGet(queue, true);
     }
@@ -83,6 +91,7 @@ public class QueueDoubleTest {
     private AMQP.BasicProperties messageProperties() {
         return new AMQP.BasicProperties.Builder()
                 .appId("app ID")
+                .userId("guest")
                 .build();
     }
 }
