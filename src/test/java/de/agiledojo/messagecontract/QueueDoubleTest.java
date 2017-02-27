@@ -13,6 +13,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class QueueDoubleTest {
 
+    private static final String QUEUE_NAME = "myQueue";
+    private static final Message sampleMessage = new Message("guest","App ID","json",
+            StandardCharsets.UTF_8.name(),new Date(), "fsf");
     @ClassRule
     public static DockerRule rabbitRule =
             DockerRule.builder()
@@ -21,17 +24,10 @@ public class QueueDoubleTest {
                     .waitForPort("5672/tcp")
                     .waitForLog("Server startup complete")
                     .build();
-
     private static ConnectionFactory connectionFactory;
-
-    private static final Message sampleMessage = new Message("guest","App ID","json",
-            StandardCharsets.UTF_8.name(),new Date(), "fsf");
-
     private Channel channel;
-
+    private QueueDouble queue;
     private Connection connection;
-
-    private String queue;
 
     @BeforeClass
     public static void setUpConnectionFactory() throws Exception {
@@ -44,18 +40,12 @@ public class QueueDoubleTest {
     public void setUp() throws Exception {
         connection = connectionFactory.newConnection();
         channel = connection.createChannel();
-        queue = channel.queueDeclare().getQueue();
+        queue = new QueueDouble(channel, QUEUE_NAME);
     }
 
     @After
     public void tearDown() throws Exception {
-        channel.close();
         connection.close();
-    }
-
-    @Test
-    public void queueIsCreated() throws IOException, TimeoutException {
-        assertThat(queue).isNotEmpty();
     }
 
     @Test
@@ -88,24 +78,13 @@ public class QueueDoubleTest {
         assertThat(response.getProps().getContentType()).isEqualTo(sampleMessage.getContentType());
 
     }
-    private GetResponse getMessageFromQueue() throws IOException {
-        return channel.basicGet(queue, true);
-    }
 
     private void sendSampleMessage() throws IOException {
-        sendMessage(sampleMessage);
+        queue.sendMessage(sampleMessage);
     }
 
-
-    private void sendMessage(Message message) throws IOException {
-        channel.basicPublish("", queue, messageProperties(message), message.getBody().getBytes());
+    private GetResponse getMessageFromQueue() throws IOException {
+        return channel.basicGet(QUEUE_NAME, true);
     }
 
-    private AMQP.BasicProperties messageProperties(Message message) {
-        return new AMQP.BasicProperties.Builder()
-                .appId(message.getAppId())
-                .userId(message.getUserId())
-                .contentType(message.getContentType())
-                .build();
-    }
-}
+ }
