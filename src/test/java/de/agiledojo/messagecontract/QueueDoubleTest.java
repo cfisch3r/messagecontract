@@ -79,6 +79,13 @@ public class QueueDoubleTest {
 
     }
 
+    @Test
+    public void messageHasBody() throws IOException {
+        sendSampleMessage();
+        GetResponse response = getMessageFromQueue();
+        assertThat(response.getBody()).isEqualTo(sampleMessage.getBody().getBytes());
+    }
+
     private void sendSampleMessage() throws IOException {
         queue.sendMessage(sampleMessage);
     }
