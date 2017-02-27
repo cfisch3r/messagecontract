@@ -28,6 +28,7 @@ class QueueDouble {
                 .appId(message.getAppId())
                 .userId(message.getUserId())
                 .contentType(message.getContentType())
+                .timestamp(message.getTimeStamp())
                 .build();
     }
 }

@@ -15,7 +15,7 @@ public class QueueDoubleTest {
 
     private static final String QUEUE_NAME = "myQueue";
     private static final Message sampleMessage = new Message("guest","App ID","json",
-            StandardCharsets.UTF_8.name(),new Date(), "fsf");
+            StandardCharsets.UTF_8.name(),new Date(120044000230L), "fsf");
     @ClassRule
     public static DockerRule rabbitRule =
             DockerRule.builder()
@@ -84,6 +84,13 @@ public class QueueDoubleTest {
         sendSampleMessage();
         GetResponse response = getMessageFromQueue();
         assertThat(response.getBody()).isEqualTo(sampleMessage.getBody().getBytes());
+    }
+
+    @Test
+    public void messageHasTimeStamp() throws IOException {
+        sendSampleMessage();
+        GetResponse response = getMessageFromQueue();
+        assertThat(response.getProps().getTimestamp()).isEqualToIgnoringMillis(sampleMessage.getTimeStamp());
     }
 
     private void sendSampleMessage() throws IOException {
