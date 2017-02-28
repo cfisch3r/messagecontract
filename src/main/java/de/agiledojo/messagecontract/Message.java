@@ -61,9 +61,14 @@ public class Message {
         if (contentType != null ? !contentType.equals(message.contentType) : message.contentType != null) return false;
         if (contentEncoding != null ? !contentEncoding.equals(message.contentEncoding) : message.contentEncoding != null)
             return false;
-        if (timeStamp != null ? !timeStamp.equals(message.timeStamp) : message.timeStamp != null) return false;
+        if (timeStamp != null ? (timeStampInseconds() != (message.timeStampInseconds())) : message.timeStamp != null) return false;
         return body != null ? body.equals(message.body) : message.body == null;
 
+    }
+
+    private long timeStampInseconds() {
+        System.out.println(timeStamp.getTime());
+        return timeStamp.getTime()/1000;
     }
 
     @Override
