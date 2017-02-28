@@ -93,6 +93,13 @@ public class QueueDoubleTest {
         assertThat(response.getProps().getTimestamp()).isEqualToIgnoringMillis(sampleMessage.getTimeStamp());
     }
 
+    @Test
+    public void messageHasContentEncoding() throws IOException {
+        sendSampleMessage();
+        GetResponse response = getMessageFromQueue();
+        assertThat(response.getProps().getContentEncoding()).isEqualTo(sampleMessage.getContentEncoding());
+    }
+
     private void sendSampleMessage() throws IOException {
         queue.sendMessage(sampleMessage);
     }

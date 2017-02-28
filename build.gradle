@@ -15,4 +15,6 @@ dependencies {
     testCompile 'org.assertj:assertj-core:3.6.2'
     testCompile 'com.github.geowarin:docker-junit-rule:1.1.0'
     compile 'com.rabbitmq:amqp-client:4.1.0'
+    compile "org.everit.json:org.everit.json.schema:1.5.0"
+
 }
