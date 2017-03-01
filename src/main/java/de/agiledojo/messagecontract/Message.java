@@ -67,7 +67,6 @@ public class Message {
     }
 
     private long timeStampInseconds() {
-        System.out.println(timeStamp.getTime());
         return timeStamp.getTime()/1000;
     }
 

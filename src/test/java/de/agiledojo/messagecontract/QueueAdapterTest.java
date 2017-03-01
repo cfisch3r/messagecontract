@@ -17,16 +17,29 @@ import java.util.function.Consumer;
 
 public class QueueAdapterTest {
 
+    public static final int TIMEOUT = 10000;
+
+    boolean throwException = false;
+
     class MessageHandler implements Consumer<Message> {
 
         public Message message;
 
         @Override
         public void accept(Message message) {
+            System.out.println(message.getBody());
+            if (throwException) {
+                throwException = false;
+                throw new RuntimeException();
+            }
             this.message = message;
             synchronized (this) {
                 notifyAll(  );
             }
+        }
+
+        public void throwExceptionOnFirstCall() {
+            throwException = true;
         }
     }
 
@@ -71,10 +84,36 @@ public class QueueAdapterTest {
 
         queue.sendMessage(sampleMessage);
         synchronized (messageHandler) {
-            messageHandler.wait(10000);
+            messageHandler.wait(TIMEOUT);
         }
 
         Assertions.assertThat(messageHandler.message).isEqualTo(sampleMessage);
 
+    }
+
+    @Test
+    public void messageFetchesMessagesAfterException() throws IOException, InterruptedException {
+        QueueAdapter adapter = new QueueAdapter(channel,QUEUE_NAME);
+        MessageHandler messageHandler = new MessageHandler();
+        messageHandler.throwExceptionOnFirstCall();
+
+
+        adapter.onMessage(messageHandler);
+
+        queue.sendMessage(sampleMessage);
+        queue.sendMessage(createMessageWithBody("zwo"));
+
+        synchronized (messageHandler) {
+            messageHandler.wait(TIMEOUT);
+            messageHandler.wait(TIMEOUT);
+        }
+
+
+        Assertions.assertThat(messageHandler.message).isEqualTo(sampleMessage);
+    }
+
+    private Message createMessageWithBody(String body) {
+        return new Message("guest","App ID","json",
+                StandardCharsets.UTF_8.name(),new Date(120044000230L), body);
     }
 }

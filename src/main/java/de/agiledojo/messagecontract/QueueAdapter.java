@@ -19,7 +19,7 @@ public class QueueAdapter {
     }
 
     public void onMessage(Consumer<Message> messageHandler) throws IOException {
-        boolean autoAck = true;
+        boolean autoAck = false;
         channel.basicConsume(queueName, autoAck, "myConsumerTag",
                 new DefaultConsumer(channel) {
                     @Override
@@ -29,12 +29,18 @@ public class QueueAdapter {
                                                byte[] body)
                             throws IOException
                     {
-                        messageHandler.accept(new Message(properties.getUserId(),
-                                properties.getAppId(),
-                                properties.getContentType(),
-                                properties.getContentEncoding(),
-                                properties.getTimestamp(),
-                                new String(body, properties.getContentEncoding())));
+                        try {
+                                messageHandler.accept(new Message(properties.getUserId(),
+                                        properties.getAppId(),
+                                        properties.getContentType(),
+                                        properties.getContentEncoding(),
+                                        properties.getTimestamp(),
+                                        new String(body, properties.getContentEncoding())));
+                        } catch (RuntimeException e) {
+                            System.out.println("error");
+                            channel.basicReject(envelope.getDeliveryTag(),true);
+                        }
+                        channel.basicAck(envelope.getDeliveryTag(), false);
                     }
                 });
     }
