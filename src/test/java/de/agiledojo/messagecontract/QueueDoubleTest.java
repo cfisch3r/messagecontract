@@ -7,16 +7,18 @@ import org.junit.*;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class QueueDoubleTest {
 
+    private static final String ERROR_QUEUE_NAME = "errorQueue";
     private static final String QUEUE_NAME = "myQueue";
     private static final Message sampleMessage = new Message("guest","App ID","json",
             StandardCharsets.UTF_8.name(),new Date(120044000230L), "fsf");
-    public static final String ERROR_QUEUE_NAME = "errorQueue";
     @ClassRule
     public static DockerRule rabbitRule =
             DockerRule.builder()
@@ -109,10 +111,36 @@ public class QueueDoubleTest {
     @Test
     public void errorQueueHasMessageWhenMessageWasRejected() throws IOException {
         sendSampleMessage();
+        rejectMessageFromQueue();
+        purgeQueue();
+        assertThat(getMessageFromErrorQueue()).isNotNull();
+    }
+
+    @Test
+    public void rejectedMessageHasAReasonHeader() throws IOException {
+        sendSampleMessage();
+        rejectMessageFromQueue();
+        purgeQueue();
+        assertThat(getLastDeathHeaderValue(getMessageFromErrorQueue(), "reason")).isEqualTo("rejected");
+    }
+
+    private String getLastDeathHeaderValue(GetResponse message, String header) throws IOException {
+        Map<String, Object> lastHeader = getLastDeathHeadersFromMessage(message);
+        return lastHeader.get(header).toString();
+    }
+
+    private Map<String, Object> getLastDeathHeadersFromMessage(GetResponse rejectedMessage) {
+        List<Map<String,Object>> deathHeaders = (List<Map<String,Object>>) rejectedMessage.getProps().getHeaders().get("x-death");
+        return deathHeaders.get(deathHeaders.size() - 1);
+    }
+
+    private void purgeQueue() throws IOException {
+        channel.queuePurge(QUEUE_NAME);
+    }
+
+    private void rejectMessageFromQueue() throws IOException {
         GetResponse gr = channel.basicGet(QUEUE_NAME, false);
         channel.basicReject(gr.getEnvelope().getDeliveryTag(),false);
-        channel.queuePurge(QUEUE_NAME);
-        assertThat(getMessageFromErrorQueue()).isNotNull();
     }
 
     private GetResponse getMessageFromErrorQueue() throws IOException {
