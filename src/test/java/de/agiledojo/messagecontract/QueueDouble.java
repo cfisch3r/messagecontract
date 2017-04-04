@@ -13,9 +13,10 @@ class QueueDouble {
     private String name;
 
 
-    QueueDouble(Channel channel,String queueName) throws IOException, TimeoutException {
+    QueueDouble(Channel channel, String queueName, String errorQueueName) throws IOException, TimeoutException {
         this.channel = channel;
         channel.queueDeclare(queueName, false, false, false, null);
+        channel.queueDeclare(errorQueueName, false, false, false, null);
         name = queueName;
     }
 

@@ -70,7 +70,7 @@ public class QueueAdapterTest {
     public void setUp() throws Exception {
         connection = connectionFactory.newConnection();
         channel = connection.createChannel();
-        queue = new QueueDouble(channel, QUEUE_NAME);
+        queue = new QueueDouble(channel, QUEUE_NAME, "errorQueue");
     }
 
 

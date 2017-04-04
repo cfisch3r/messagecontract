@@ -16,6 +16,7 @@ public class QueueDoubleTest {
     private static final String QUEUE_NAME = "myQueue";
     private static final Message sampleMessage = new Message("guest","App ID","json",
             StandardCharsets.UTF_8.name(),new Date(120044000230L), "fsf");
+    public static final String ERROR_QUEUE_NAME = "errorQueue";
     @ClassRule
     public static DockerRule rabbitRule =
             DockerRule.builder()
@@ -40,7 +41,7 @@ public class QueueDoubleTest {
     public void setUp() throws Exception {
         connection = connectionFactory.newConnection();
         channel = connection.createChannel();
-        queue = new QueueDouble(channel, QUEUE_NAME);
+        queue = new QueueDouble(channel, QUEUE_NAME, ERROR_QUEUE_NAME);
     }
 
     @After
@@ -100,12 +101,24 @@ public class QueueDoubleTest {
         assertThat(response.getProps().getContentEncoding()).isEqualTo(sampleMessage.getContentEncoding());
     }
 
+    @Test
+    public void errorQueueIsEmpty() throws IOException {
+        assertThat(getMessageFromErrorQueue()).isNull();
+    }
+
+    private GetResponse getMessageFromErrorQueue() throws IOException {
+        return getMessageFromQueue(ERROR_QUEUE_NAME);
+    }
+
     private void sendSampleMessage() throws IOException {
         queue.sendMessage(sampleMessage);
     }
 
     private GetResponse getMessageFromQueue() throws IOException {
-        return channel.basicGet(QUEUE_NAME, true);
+        return getMessageFromQueue(QUEUE_NAME);
     }
 
+    private GetResponse getMessageFromQueue(String queueName) throws IOException {
+        return channel.basicGet(queueName, true);
+    }
  }
