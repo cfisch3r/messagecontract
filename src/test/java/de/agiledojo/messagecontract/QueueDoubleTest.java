@@ -106,6 +106,15 @@ public class QueueDoubleTest {
         assertThat(getMessageFromErrorQueue()).isNull();
     }
 
+    @Test
+    public void errorQueueHasMessageWhenMessageWasRejected() throws IOException {
+        sendSampleMessage();
+        GetResponse gr = channel.basicGet(QUEUE_NAME, false);
+        channel.basicReject(gr.getEnvelope().getDeliveryTag(),false);
+        channel.queuePurge(QUEUE_NAME);
+        assertThat(getMessageFromErrorQueue()).isNotNull();
+    }
+
     private GetResponse getMessageFromErrorQueue() throws IOException {
         return getMessageFromQueue(ERROR_QUEUE_NAME);
     }

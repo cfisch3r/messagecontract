@@ -4,6 +4,8 @@ import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Channel;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
 class QueueDouble {
@@ -15,8 +17,13 @@ class QueueDouble {
 
     QueueDouble(Channel channel, String queueName, String errorQueueName) throws IOException, TimeoutException {
         this.channel = channel;
-        channel.queueDeclare(queueName, false, false, false, null);
+        channel.exchangeDeclare("errorExchange", "direct");
+        Map<String, Object> args = new HashMap<>();
+        args.put("x-dead-letter-exchange", "errorExchange");
+        args.put("x-dead-letter-routing-key", errorQueueName);
+        channel.queueDeclare(queueName, false, false, false, args);
         channel.queueDeclare(errorQueueName, false, false, false, null);
+        channel.queueBind(errorQueueName,"errorExchange",errorQueueName);
         name = queueName;
     }
 
