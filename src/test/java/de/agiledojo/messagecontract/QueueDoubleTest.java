@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -105,23 +106,32 @@ public class QueueDoubleTest {
 
     @Test
     public void errorQueueIsEmpty() throws IOException {
-        assertThat(getMessageFromErrorQueue()).isNull();
+        assertThat(getMessageFromQueue(ERROR_QUEUE_NAME)).isNull();
     }
 
     @Test
-    public void errorQueueHasMessageWhenMessageWasRejected() throws IOException {
+    public void errorQueueHasMessageWhenMessageWasRejected() throws IOException, InterruptedException {
         sendSampleMessage();
         rejectMessageFromQueue();
-        purgeQueue();
-        assertThat(getMessageFromErrorQueue()).isNotNull();
+        assertThat(tryToGetMessage(10, ERROR_QUEUE_NAME)).isPresent();
     }
 
     @Test
-    public void rejectedMessageHasAReasonHeader() throws IOException {
+    public void rejectedMessageHasAReasonHeader() throws IOException, InterruptedException {
         sendSampleMessage();
         rejectMessageFromQueue();
-        purgeQueue();
-        assertThat(getLastDeathHeaderValue(getMessageFromErrorQueue(), "reason")).isEqualTo("rejected");
+        assertThat(getLastDeathHeaderValue(tryToGetMessage(10, ERROR_QUEUE_NAME).get(), "reason")).isEqualTo("rejected");
+    }
+
+    private Optional<GetResponse> tryToGetMessage(int timeout, String queueName) throws IOException, InterruptedException {
+        GetResponse message;
+        do {
+            message = getMessageFromQueue(queueName);
+            Thread.sleep(1000);
+            timeout--;
+        } while (message == null && timeout > 0);
+
+        return Optional.ofNullable(message);
     }
 
     private String getLastDeathHeaderValue(GetResponse message, String header) throws IOException {
@@ -134,17 +144,9 @@ public class QueueDoubleTest {
         return deathHeaders.get(deathHeaders.size() - 1);
     }
 
-    private void purgeQueue() throws IOException {
-        channel.queuePurge(QUEUE_NAME);
-    }
-
     private void rejectMessageFromQueue() throws IOException {
         GetResponse gr = channel.basicGet(QUEUE_NAME, false);
         channel.basicReject(gr.getEnvelope().getDeliveryTag(),false);
-    }
-
-    private GetResponse getMessageFromErrorQueue() throws IOException {
-        return getMessageFromQueue(ERROR_QUEUE_NAME);
     }
 
     private void sendSampleMessage() throws IOException {
