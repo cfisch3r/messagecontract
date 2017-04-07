@@ -37,8 +37,8 @@ public class QueueAdapter {
                                         properties.getTimestamp(),
                                         new String(body, properties.getContentEncoding())));
                         } catch (RuntimeException e) {
-                            System.out.println("error");
-                            channel.basicReject(envelope.getDeliveryTag(),true);
+                            channel.basicReject(envelope.getDeliveryTag(),false);
+                            return;
                         }
                         channel.basicAck(envelope.getDeliveryTag(), false);
                     }

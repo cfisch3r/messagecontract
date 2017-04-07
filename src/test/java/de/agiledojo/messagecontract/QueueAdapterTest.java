@@ -4,56 +4,58 @@ import com.github.geowarin.junit.DockerRule;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
-import org.assertj.core.api.Assertions;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Test;
+import com.rabbitmq.client.GetResponse;
+import org.junit.*;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.Optional;
 import java.util.function.Consumer;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class QueueAdapterTest {
 
     public static final int TIMEOUT = 10000;
 
-    boolean throwException = false;
+    public static final String ERROR_QUEUE_NAME = "errorQueue";
+
+    private static final String QUEUE_NAME = "myQueue";
+
+    private static final Message sampleMessage = new Message("guest","App ID","json",
+            StandardCharsets.UTF_8.name(),new Date(120044000230L), "fsf");
+
+    private QueueAdapter queueAdapter;
 
     class MessageHandler implements Consumer<Message> {
 
-        public Message message;
+        private Message message;
 
         @Override
         public void accept(Message message) {
-            System.out.println(message.getBody());
-            if (throwException) {
-                throwException = false;
-                throw new RuntimeException();
-            }
             this.message = message;
             synchronized (this) {
-                notifyAll(  );
+                 notifyAll();
             }
         }
 
-        public void throwExceptionOnFirstCall() {
-            throwException = true;
+        public Optional<Message> getLastAcceptedMessage() {
+            return Optional.ofNullable(message);
         }
     }
 
-    private static final String QUEUE_NAME = "myQueue";
-    private static final Message sampleMessage = new Message("guest","App ID","json",
-            StandardCharsets.UTF_8.name(),new Date(120044000230L), "fsf");
+    class FailureMessageHandler implements Consumer<Message> {
+
+        @Override
+        public void accept(Message message) {
+            throw new RuntimeException();
+        }
+    }
+
     @ClassRule
-    public static DockerRule rabbitRule =
-            DockerRule.builder()
-                    .image("rabbitmq:latest")
-                    .ports("5672")
-                    .waitForPort("5672/tcp")
-                    .waitForLog("Server startup complete")
-                    .build();
+    public static DockerRule rabbitRule = RabbitMQDockerRule.build();
+
     private static ConnectionFactory connectionFactory;
     private Channel channel;
     private QueueDouble queue;
@@ -71,49 +73,45 @@ public class QueueAdapterTest {
         connection = connectionFactory.newConnection();
         channel = connection.createChannel();
         queue = new QueueDouble(channel, QUEUE_NAME, "errorQueue");
+        queueAdapter = new QueueAdapter(channel,QUEUE_NAME);
     }
 
+    @After
+    public void tearDown() throws Exception {
+        channel.close();
+    }
 
     @Test
     public void messageHandlerIsCalledWhenMessageIsSent() throws InterruptedException, IOException {
-        QueueAdapter adapter = new QueueAdapter(channel,QUEUE_NAME);
         MessageHandler messageHandler = new MessageHandler();
-
-
-        adapter.onMessage(messageHandler);
-
+        queueAdapter.onMessage(messageHandler);
         queue.sendMessage(sampleMessage);
         synchronized (messageHandler) {
             messageHandler.wait(TIMEOUT);
         }
-
-        Assertions.assertThat(messageHandler.message).isEqualTo(sampleMessage);
+        assertThat(messageHandler.getLastAcceptedMessage()).isPresent().contains(sampleMessage);
 
     }
 
     @Test
-    public void messageFetchesMessagesAfterException() throws IOException, InterruptedException {
-        QueueAdapter adapter = new QueueAdapter(channel,QUEUE_NAME);
-        MessageHandler messageHandler = new MessageHandler();
-        messageHandler.throwExceptionOnFirstCall();
-
-
-        adapter.onMessage(messageHandler);
-
+    public void messageFetchesMessagesAfterFailure() throws IOException, InterruptedException {
+        queueAdapter.onMessage(new FailureMessageHandler());
         queue.sendMessage(sampleMessage);
-        queue.sendMessage(createMessageWithBody("zwo"));
-
-        synchronized (messageHandler) {
-            messageHandler.wait(TIMEOUT);
-            messageHandler.wait(TIMEOUT);
-        }
-
-
-        Assertions.assertThat(messageHandler.message).isEqualTo(sampleMessage);
+        assertThat(tryToGetMessage(10, ERROR_QUEUE_NAME)).isPresent();
     }
 
-    private Message createMessageWithBody(String body) {
-        return new Message("guest","App ID","json",
-                StandardCharsets.UTF_8.name(),new Date(120044000230L), body);
+    private Optional<GetResponse> tryToGetMessage(int timeout, String queueName) throws IOException, InterruptedException {
+        GetResponse message;
+        do {
+            message = getMessageFromQueue(queueName);
+            Thread.sleep(1000);
+            timeout--;
+        } while (message == null && timeout > 0);
+
+        return Optional.ofNullable(message);
+    }
+
+    private GetResponse getMessageFromQueue(String queueName) throws IOException {
+        return channel.basicGet(queueName, true);
     }
 }

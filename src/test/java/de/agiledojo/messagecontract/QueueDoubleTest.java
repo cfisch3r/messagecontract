@@ -21,13 +21,7 @@ public class QueueDoubleTest {
     private static final Message sampleMessage = new Message("guest","App ID","json",
             StandardCharsets.UTF_8.name(),new Date(120044000230L), "fsf");
     @ClassRule
-    public static DockerRule rabbitRule =
-            DockerRule.builder()
-                    .image("rabbitmq:latest")
-                    .ports("5672")
-                    .waitForPort("5672/tcp")
-                    .waitForLog("Server startup complete")
-                    .build();
+    public static DockerRule rabbitRule = RabbitMQDockerRule.build();
     private static ConnectionFactory connectionFactory;
     private Channel channel;
     private QueueDouble queue;
