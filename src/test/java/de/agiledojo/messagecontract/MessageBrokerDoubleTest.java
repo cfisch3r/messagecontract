@@ -9,41 +9,37 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class QueueDoubleTest {
+public class MessageBrokerDoubleTest {
 
     private static final String ERROR_QUEUE_NAME = "errorQueue";
     private static final String QUEUE_NAME = "myQueue";
     private static final Message sampleMessage = new Message("guest","App ID","json",
             StandardCharsets.UTF_8.name(),new Date(120044000230L), "fsf");
+    private static ChannelFactory channelFactory;
+
     @ClassRule
     public static DockerRule rabbitRule = RabbitMQDockerRule.build();
-    private static ConnectionFactory connectionFactory;
-    private Channel channel;
-    private QueueDouble queue;
-    private Connection connection;
+    private MessageBrokerDouble messageBroker;
+    private RabbitMQClient client;
 
     @BeforeClass
-    public static void setUpConnectionFactory() throws Exception {
-        connectionFactory = new ConnectionFactory();
-        connectionFactory.setHost(rabbitRule.getDockerHost());
-        connectionFactory.setPort(rabbitRule.getHostPort("5672/tcp"));
+    public static void setUpChannelFactory() throws Exception {
+        channelFactory = new ChannelFactory(rabbitRule.getDockerHost(),rabbitRule.getHostPort("5672/tcp"));
     }
 
     @Before
     public void setUp() throws Exception {
-        connection = connectionFactory.newConnection();
-        channel = connection.createChannel();
-        queue = new QueueDouble(channel, QUEUE_NAME, ERROR_QUEUE_NAME);
+        messageBroker = new MessageBrokerDouble(channelFactory.createChannel(), QUEUE_NAME, ERROR_QUEUE_NAME);
+        client = new RabbitMQClient(channelFactory.createChannel());
     }
 
     @After
     public void tearDown() throws Exception {
-        connection.close();
+        channelFactory.releaseAllChannels();
     }
 
     @Test
@@ -100,32 +96,14 @@ public class QueueDoubleTest {
 
     @Test
     public void errorQueueIsEmpty() throws IOException {
-        assertThat(getMessageFromQueue(ERROR_QUEUE_NAME)).isNull();
-    }
-
-    @Test
-    public void errorQueueHasMessageWhenMessageWasRejected() throws IOException, InterruptedException {
-        sendSampleMessage();
-        rejectMessageFromQueue();
-        assertThat(tryToGetMessage(10, ERROR_QUEUE_NAME)).isPresent();
+        assertThat(client.getMessageFromQueue(ERROR_QUEUE_NAME)).isNull();
     }
 
     @Test
     public void rejectedMessageHasAReasonHeader() throws IOException, InterruptedException {
         sendSampleMessage();
         rejectMessageFromQueue();
-        assertThat(getLastDeathHeaderValue(tryToGetMessage(10, ERROR_QUEUE_NAME).get(), "reason")).isEqualTo("rejected");
-    }
-
-    private Optional<GetResponse> tryToGetMessage(int timeout, String queueName) throws IOException, InterruptedException {
-        GetResponse message;
-        do {
-            message = getMessageFromQueue(queueName);
-            Thread.sleep(1000);
-            timeout--;
-        } while (message == null && timeout > 0);
-
-        return Optional.ofNullable(message);
+        assertThat(getLastDeathHeaderValue(getMessageFromQueue(ERROR_QUEUE_NAME), "reason")).isEqualTo("rejected");
     }
 
     private String getLastDeathHeaderValue(GetResponse message, String header) throws IOException {
@@ -138,20 +116,26 @@ public class QueueDoubleTest {
         return deathHeaders.get(deathHeaders.size() - 1);
     }
 
-    private void rejectMessageFromQueue() throws IOException {
-        GetResponse gr = channel.basicGet(QUEUE_NAME, false);
-        channel.basicReject(gr.getEnvelope().getDeliveryTag(),false);
+    private void rejectMessageFromQueue() throws IOException, InterruptedException {
+        client.rejectMessageFromQueue(QUEUE_NAME);
     }
-
+//
     private void sendSampleMessage() throws IOException {
-        queue.sendMessage(sampleMessage);
+        messageBroker.triggerMessage(sampleMessage);
     }
 
     private GetResponse getMessageFromQueue() throws IOException {
-        return getMessageFromQueue(QUEUE_NAME);
+        try {
+            return client.pollMessageFromQueue(QUEUE_NAME).get();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private GetResponse getMessageFromQueue(String queueName) throws IOException {
-        return channel.basicGet(queueName, true);
-    }
+        try {
+            return client.pollMessageFromQueue(queueName).get();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }    }
  }

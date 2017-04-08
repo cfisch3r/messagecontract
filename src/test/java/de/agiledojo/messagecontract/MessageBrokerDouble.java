@@ -2,20 +2,20 @@ package de.agiledojo.messagecontract;
 
 import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.ConnectionFactory;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
-class QueueDouble {
+class MessageBrokerDouble {
 
     private Channel channel;
 
     private String name;
 
-
-    QueueDouble(Channel channel, String queueName, String errorQueueName) throws IOException, TimeoutException {
+    MessageBrokerDouble(Channel channel, String queueName, String errorQueueName) throws IOException, TimeoutException {
         this.channel = channel;
         channel.exchangeDeclare("errorExchange", "direct");
         Map<String, Object> args = new HashMap<>();
@@ -27,7 +27,7 @@ class QueueDouble {
         name = queueName;
     }
 
-    void sendMessage(Message message) throws IOException {
+    void triggerMessage(Message message) throws IOException {
         channel.basicPublish("", name, messageProperties(message), message.getBody().getBytes());
     }
 

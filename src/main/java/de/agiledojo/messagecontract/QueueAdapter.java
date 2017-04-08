@@ -19,8 +19,7 @@ public class QueueAdapter {
     }
 
     public void onMessage(Consumer<Message> messageHandler) throws IOException {
-        boolean autoAck = false;
-        channel.basicConsume(queueName, autoAck, "myConsumerTag",
+        channel.basicConsume(queueName, false, this.getClass().getCanonicalName(),
                 new DefaultConsumer(channel) {
                     @Override
                     public void handleDelivery(String consumerTag,

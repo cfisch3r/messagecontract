@@ -1,10 +1,6 @@
 package de.agiledojo.messagecontract;
 
 import com.github.geowarin.junit.DockerRule;
-import com.rabbitmq.client.Channel;
-import com.rabbitmq.client.Connection;
-import com.rabbitmq.client.ConnectionFactory;
-import com.rabbitmq.client.GetResponse;
 import org.junit.*;
 
 import java.io.IOException;
@@ -27,8 +23,9 @@ public class QueueAdapterTest {
             StandardCharsets.UTF_8.name(),new Date(120044000230L), "fsf");
 
     private QueueAdapter queueAdapter;
+    private RabbitMQClient client;
 
-    class MessageHandler implements Consumer<Message> {
+    class MessageHandlerMock implements Consumer<Message> {
 
         private Message message;
 
@@ -56,62 +53,44 @@ public class QueueAdapterTest {
     @ClassRule
     public static DockerRule rabbitRule = RabbitMQDockerRule.build();
 
-    private static ConnectionFactory connectionFactory;
-    private Channel channel;
-    private QueueDouble queue;
-    private Connection connection;
+    private static ChannelFactory channelFactory;
+
+    private MessageBrokerDouble messageBroker;
 
     @BeforeClass
-    public static void setUpConnectionFactory() throws Exception {
-        connectionFactory = new ConnectionFactory();
-        connectionFactory.setHost(rabbitRule.getDockerHost());
-        connectionFactory.setPort(rabbitRule.getHostPort("5672/tcp"));
+    public static void setUpChannelFactory() throws Exception {
+        channelFactory = new ChannelFactory(rabbitRule.getDockerHost(), rabbitRule.getHostPort("5672/tcp"));
     }
 
     @Before
     public void setUp() throws Exception {
-        connection = connectionFactory.newConnection();
-        channel = connection.createChannel();
-        queue = new QueueDouble(channel, QUEUE_NAME, "errorQueue");
-        queueAdapter = new QueueAdapter(channel,QUEUE_NAME);
+        messageBroker = new MessageBrokerDouble(channelFactory.createChannel(), QUEUE_NAME, ERROR_QUEUE_NAME);
+        queueAdapter = new QueueAdapter(channelFactory.createChannel(),QUEUE_NAME);
+        client = new RabbitMQClient(channelFactory.createChannel());
     }
 
     @After
     public void tearDown() throws Exception {
-        channel.close();
+        channelFactory.releaseAllChannels();
     }
 
     @Test
     public void messageHandlerIsCalledWhenMessageIsSent() throws InterruptedException, IOException {
-        MessageHandler messageHandler = new MessageHandler();
-        queueAdapter.onMessage(messageHandler);
-        queue.sendMessage(sampleMessage);
-        synchronized (messageHandler) {
-            messageHandler.wait(TIMEOUT);
+        MessageHandlerMock messageHandlerMock = new MessageHandlerMock();
+        queueAdapter.onMessage(messageHandlerMock);
+        messageBroker.triggerMessage(sampleMessage);
+        synchronized (messageHandlerMock) {
+            messageHandlerMock.wait(TIMEOUT);
         }
-        assertThat(messageHandler.getLastAcceptedMessage()).isPresent().contains(sampleMessage);
+        assertThat(messageHandlerMock.getLastAcceptedMessage()).isPresent().contains(sampleMessage);
 
     }
 
     @Test
-    public void messageFetchesMessagesAfterFailure() throws IOException, InterruptedException {
+    public void messageIsForwardedToErrorQueueAfterFailure() throws IOException, InterruptedException {
         queueAdapter.onMessage(new FailureMessageHandler());
-        queue.sendMessage(sampleMessage);
-        assertThat(tryToGetMessage(10, ERROR_QUEUE_NAME)).isPresent();
+        messageBroker.triggerMessage(sampleMessage);
+        assertThat(client.pollMessageFromQueue(ERROR_QUEUE_NAME)).isPresent();
     }
 
-    private Optional<GetResponse> tryToGetMessage(int timeout, String queueName) throws IOException, InterruptedException {
-        GetResponse message;
-        do {
-            message = getMessageFromQueue(queueName);
-            Thread.sleep(1000);
-            timeout--;
-        } while (message == null && timeout > 0);
-
-        return Optional.ofNullable(message);
-    }
-
-    private GetResponse getMessageFromQueue(String queueName) throws IOException {
-        return channel.basicGet(queueName, true);
-    }
 }
