@@ -22,5 +22,5 @@ using the [Dead Letter Exchange feature](https://www.rabbitmq.com/dlx.html) of R
 The RabbitMQ server is started as Docker container using the Junit rule from 
 [geowarin](https://github.com/geowarin/docker-junit-rule). 
 All the setup of the RabbitMQ configuration like queues and exchanges are done in the 
-[MessageBrokerDouble](test/java/de/agiledojo/messagecontract/MessageBrokerDouble.java).
+[MessageBrokerDouble](src/test/java/de/agiledojo/messagecontract/MessageBrokerDouble.java).
 
